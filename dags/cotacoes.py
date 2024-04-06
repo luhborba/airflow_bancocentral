@@ -122,3 +122,29 @@ create_table_task = PostgresOperator(
     dag=dag
 )
 
+#### LOAD ####
+
+def load(**kwargs):
+    cotacoes_df = kwargs['ti'].xcom_pull(task_ids='transform')
+    table_name = "cotacoes"
+
+    postgres_hook = PostgresHook(posgres_conn_id="postgres_astro",schema="astro")
+
+    rows = list(cotacoes_df.itertuples(index=False))
+
+    # FUNDAMENTO DE UPSERT (UPDATE + INSERT)
+    postgres_hook.insert_rows(
+        table=table_name,
+        rows=rows,
+        replace_index=["DT_FECHAMENTO", "COD_MOEDA"],
+        target_fields=["DT_FECHAMENTO", "COD_MOEDA","TIPO_MOEDA","DESC_MOEDA","TAXA_COMPRA","TAXA_VENDA","PARIDADE_COMPRA","PARIDADE_VENDA","data_processamento"],
+        )
+
+load_task = PythonOperator(
+    task_id='load',
+    python_callable=load,
+    provide_context=True,
+    dag=dag
+)
+
+extract_task >> transform_task >> create_table_task >> load_task
