@@ -23,6 +23,7 @@ dag = DAG(
     tags=['bcb']
 )
 
+#### EXTRACT ####
 def extract(**kwargs):
     ds_nodash = kwargs['ds_nodash']
     base_url = 'https://www4.bcb.gov.br/Download/Fechamento/'
@@ -43,6 +44,8 @@ extract_task = PythonOperator(
     provide_context=True,
     dag=dag
 )
+
+#### TRANSFORM ####
 
 def transform(**kwargs):
     cotacoes = kwargs['ti'].xcom_pull(task_ids='extract')
@@ -94,3 +97,28 @@ transform_task = PythonOperator(
     provide_context=True,
     dag=dag
 )
+
+#### CREATE TABLE ####
+
+create_table = """
+    CREATE TABLE IF NOT EXISTS cotacoes (
+        dt_fechamento DATE,
+        cod_moeda TEXT,
+        tipo_moeda TEXT,
+        desc_moeda TEXT,
+        taxa_compra REAL,
+        taxa_venda REAL,
+        paridade_compra REAL,
+        paridade_venda REAL,
+        data_processamento TIMESTAMP,
+        CONSTRAINT table_cotacoes_pk PRIMARY KEY (dt_fechamento, cod_moeda) 
+    )
+"""
+
+create_table_task = PostgresOperator(
+    task_id='create_table',
+    postgres_conn_id='postgres_astro',
+    sql=create_table,
+    dag=dag
+)
+
